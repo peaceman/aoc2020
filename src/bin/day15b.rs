@@ -1,5 +1,5 @@
 use clap::Clap;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -23,25 +23,25 @@ fn main() -> Result<(), Box<dyn StdError>> {
 
 fn play_game(input: impl BufRead, rounds: usize) -> u64 {
     let mut last_number = None;
-    let mut memory: HashMap<u64, (Option<usize>, usize)> = HashMap::new();
+    let mut memory: HashMap<u64, usize> = HashMap::new();
     let mut round = 0;
 
     fn record_number(
         n: u64,
         last_number: &mut Option<u64>,
-        memory: &mut HashMap<u64, (Option<usize>, usize)>,
+        memory: &mut HashMap<u64, usize>,
         round: &mut usize,
-    ) {
+    ) -> u64 {
         *last_number = Some(n);
 
-        if let Some(v) = memory.get_mut(n) {
-            v.0 = Some(v.1);
-            v.1 = *round;
-        } else {
-            memory.insert(n, (None, *round));
-        }
+        let next_number = match memory.insert(n, *round) {
+            Some(prev_round) => *round - prev_round,
+            None => 0,
+        } as u64;
 
         *round += 1;
+
+        next_number
     };
 
     input
@@ -52,24 +52,22 @@ fn play_game(input: impl BufRead, rounds: usize) -> u64 {
         .trim()
         .split(',')
         .map(|s| s.parse::<u64>().unwrap())
-        .for_each(|n| record_number(n, &mut last_number, &mut memory, &mut round));
+        .for_each(|n| {
+            record_number(n, &mut last_number, &mut memory, &mut round);
+        });
 
+    let mut next_number = 0;
     loop {
         if round >= rounds {
             break;
         }
-
-        let next_number = match &memory[last_number.as_ref().unwrap()] {
-            (None, _) => 0,
-            (Some(prev), last) => last - prev,
-        } as u64;
 
         // println!(
         //     "next_number: {} last_number: {:?} round: {}",
         //     next_number, last_number, round
         // );
 
-        record_number(next_number, &mut last_number, &mut memory, &mut round);
+        next_number = record_number(next_number, &mut last_number, &mut memory, &mut round);
     }
 
     last_number.unwrap()
