@@ -4,6 +4,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::iter::Filter;
 use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
@@ -39,26 +40,30 @@ impl Grid {
     }
 
     fn active_bounds(&self) -> (Position, Position) {
-        let active_positions = self.iter().filter(|(_k, &v)| v).collect::<Vec<_>>();
+        let active_positions = self.active_positions_iter().collect::<Vec<_>>();
         let min = Position {
-            x: active_positions.iter().map(|(p, _)| p.x).min().unwrap(),
-            y: active_positions.iter().map(|(p, _)| p.y).min().unwrap(),
-            z: active_positions.iter().map(|(p, _)| p.z).min().unwrap(),
-            w: active_positions.iter().map(|(p, _)| p.w).min().unwrap(),
+            x: active_positions.iter().map(|p| p.x).min().unwrap(),
+            y: active_positions.iter().map(|p| p.y).min().unwrap(),
+            z: active_positions.iter().map(|p| p.z).min().unwrap(),
+            w: active_positions.iter().map(|p| p.w).min().unwrap(),
         };
 
         let max = Position {
-            x: active_positions.iter().map(|(p, _)| p.x).max().unwrap(),
-            y: active_positions.iter().map(|(p, _)| p.y).max().unwrap(),
-            z: active_positions.iter().map(|(p, _)| p.z).max().unwrap(),
-            w: active_positions.iter().map(|(p, _)| p.w).max().unwrap(),
+            x: active_positions.iter().map(|p| p.x).max().unwrap(),
+            y: active_positions.iter().map(|p| p.y).max().unwrap(),
+            z: active_positions.iter().map(|p| p.z).max().unwrap(),
+            w: active_positions.iter().map(|p| p.w).max().unwrap(),
         };
 
         (min, max)
     }
 
     fn active_count(&self) -> usize {
-        self.iter().filter(|(_k, &v)| v).count()
+        self.active_positions_iter().count()
+    }
+
+    fn active_positions_iter(&self) -> impl Iterator<Item = &Position> {
+        self.iter().filter(|(_k, &v)| v).map(|(k, _v)| k)
     }
 }
 
@@ -204,17 +209,18 @@ fn simulate_cycle(grid: &mut Grid) {
         }
     };
 
-    let (min, max) = grid.active_bounds();
-    // println!("min: {:?} max: {:?}", min, max);
+    let mut positions_to_check = HashSet::new();
+    for pos in grid.active_positions_iter() {
+        check_pos(pos, grid);
+        let neighbours = pos.neighbours();
 
-    for z in min.z - 1..=max.z + 1 {
-        for w in min.w - 1..=max.w + 1 {
-            for y in min.y - 1..=max.y + 1 {
-                for x in min.x - 1..=max.x + 1 {
-                    check_pos(&Position { x, y, z, w }, grid)
-                }
-            }
+        for np in &neighbours {
+            positions_to_check.insert(np.clone());
         }
+    }
+
+    for pos in positions_to_check {
+        check_pos(&pos, grid);
     }
 
     for pos in deactivate {
